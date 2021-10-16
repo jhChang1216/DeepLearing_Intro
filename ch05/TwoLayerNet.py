@@ -4,17 +4,36 @@ import numpy as np
 from common.layers import *
 from common.gradient import numerical_gradient
 from collections import OrderedDict
+from ch06.dropout import Dropout
+
+weight_decay_lambda = 0.1
 
 class TwoLayerNet:
 
-    def __init__(self, input_size, hidden_size, output_size, weight_init_std=0.01):
+    def __init__(self, input_size, hidden_size, output_size, weight_init_std=0.01, Xavier = False, He=False, l2=False, dropout=False, l1=False):
         self.params = {}
-        self.params['W1'] = weight_init_std * np.random.randn(input_size, hidden_size)
-        self.params['b1'] = np.zeros(hidden_size)
-        self.params['W2'] = weight_init_std * np.random.randn(hidden_size, output_size)
-        self.params['b2'] = np.zeros(output_size)
+        self.l1 = l1
+        self.l2 = l2
+
+        if not Xavier and not He:
+            self.params['W1'] = weight_init_std * np.random.randn(input_size, hidden_size)
+            self.params['b1'] = np.zeros(hidden_size)
+            self.params['W2'] = weight_init_std * np.random.randn(hidden_size, output_size)
+            self.params['b2'] = np.zeros(output_size)
+        if Xavier:
+            self.params['W1'] = (1 / np.sqrt(input_size)) * np.random.randn(input_size, hidden_size)
+            self.params['b1'] = np.zeros(hidden_size)
+            self.params['W2'] = (1 / np.sqrt(hidden_size)) * np.random.randn(hidden_size, output_size)
+            self.params['b2'] = np.zeros(output_size)
+        if He:
+            self.params['W1'] = (2 / np.sqrt(input_size)) * np.random.randn(input_size, hidden_size)
+            self.params['b1'] = np.zeros(hidden_size)
+            self.params['W2'] = (2 / np.sqrt(hidden_size)) * np.random.randn(hidden_size, output_size)
+            self.params['b2'] = np.zeros(output_size)
 
         self.layers = OrderedDict()
+        if dropout:
+            self.layers['Dropout'] = Dropout(0.1)
         self.layers['Affine1'] = Affine(self.params['W1'], self.params['b1'])
         self.layers['Relu'] = Relu()
         self.layers['Affine2'] = Affine(self.params['W2'], self.params['b2'])
@@ -28,7 +47,24 @@ class TwoLayerNet:
 
     def loss(self, x, t):
         y = self.predict(x)
+
+        if self.l1:
+            weight_decay = 0
+            for idx in range(1, 3):
+                W = self.params['W' + str(idx)]
+                weight_decay += 0.5 * weight_decay_lambda * np.sum(np.abs(W))
+            return self.lastlayer.forward(y, t) + weight_decay
+
+        if self.l2:
+            weight_decay = 0
+            for idx in range(1, 3):
+                W = self.params['W' + str(idx)]
+                weight_decay += 0.5 * weight_decay_lambda * np.sum(W ** 2)
+            return self.lastlayer.forward(y, t) + weight_decay
+
+        y = self.predict(x)
         return self.lastlayer.forward(y, t)
+
 
     def accuracy(self, x, t):
         y = self.predict(x)
@@ -52,6 +88,7 @@ class TwoLayerNet:
 
 
     def gradient(self, x, t):
+
         self.loss(x, t)
 
         dout = 1
